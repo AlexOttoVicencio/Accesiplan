@@ -10,31 +10,30 @@ import {
   NODE_TYPE_LABELS
 } from '../types/oguc';
 import {
-  Plus,
   DoorOpen,
   Bath,
   BedDouble,
-  CookingPot,
-  Sparkles,
-  ToggleLeft,
   Grid,
-  SquareDashedBottom
+  SquareDashedBottom,
+  ToggleLeft
 } from 'lucide-react';
 
 interface ItemToolbarProps {
   project: ProjectData;
+  theme: 'dark' | 'light';
   onUpdateProject: (updated: ProjectData) => void;
   onSelectEntity: (type: 'node' | 'edge' | 'item' | null, id: string | null, subId?: string | null) => void;
 }
 
 export const ItemToolbar: React.FC<ItemToolbarProps> = ({
   project,
+  theme,
   onUpdateProject,
   onSelectEntity
 }) => {
-  // Crear nuevo recinto
+  const isDark = theme === 'dark';
+
   const handleAddRoom = (type: NodeType) => {
-    // Buscar posición libre a la derecha del último recinto
     let maxX = 0;
     project.nodes.forEach(n => {
       n.polygon_2d.forEach(p => {
@@ -43,14 +42,18 @@ export const ItemToolbar: React.FC<ItemToolbarProps> = ({
     });
 
     const startX = maxX > 0 ? Number((maxX + 0.5).toFixed(1)) : 0;
-    const width = type === 'RESTROOM_ACCESSIBLE' ? 2.4 : type === 'BEDROOM_ACCESSIBLE' ? 3.5 : 2.5;
-    const depth = type === 'RESTROOM_ACCESSIBLE' ? 2.2 : type === 'BEDROOM_ACCESSIBLE' ? 3.2 : 2.5;
+    const width = type === 'RESTROOM_ACCESSIBLE' ? 2.6 : type === 'BEDROOM_ACCESSIBLE' ? 3.6 : 2.5;
+    const depth = type === 'RESTROOM_ACCESSIBLE' ? 2.4 : type === 'BEDROOM_ACCESSIBLE' ? 3.8 : 2.5;
 
     const newId = `REC_${Date.now().toString().slice(-4)}`;
     const newNode: SpatialNode = {
       node_id: newId,
       label: NODE_TYPE_LABELS[type] || 'Nuevo Recinto',
       type: type,
+      dimensions: {
+        width_m: width,
+        length_m: depth
+      },
       polygon_2d: [
         { x: startX, y: 0.0 },
         { x: Number((startX + width).toFixed(2)), y: 0.0 },
@@ -68,7 +71,6 @@ export const ItemToolbar: React.FC<ItemToolbarProps> = ({
     onSelectEntity('node', newId);
   };
 
-  // Crear nueva puerta
   const handleAddDoor = () => {
     if (project.nodes.length === 0) return;
     const nodeA = project.nodes[0];
@@ -84,6 +86,7 @@ export const ItemToolbar: React.FC<ItemToolbarProps> = ({
         x: Number((nodeA.polygon_2d[1]?.x || 2.0).toFixed(2)),
         y: Number(((nodeA.polygon_2d[0]?.y || 0) + 1.0).toFixed(2))
       },
+      rotation_deg: 90,
       swing_direction: 'IN_A'
     };
 
@@ -94,7 +97,6 @@ export const ItemToolbar: React.FC<ItemToolbarProps> = ({
     onSelectEntity('edge', newEdgeId);
   };
 
-  // Añadir ítem a recinto activo o primero
   const handleAddItem = (type: ItemType) => {
     if (project.nodes.length === 0) {
       handleAddRoom('ACCESO_PRINCIPAL');
@@ -113,6 +115,7 @@ export const ItemToolbar: React.FC<ItemToolbarProps> = ({
       depth: type === 'TOILET' ? 0.70 : type === 'SINK' ? 0.50 : type === 'BED' ? 2.00 : 0.40,
       z_installation: type === 'SWITCH' ? 1.00 : type === 'SINK' ? 0.80 : type === 'TOILET' ? 0.48 : 0.90,
       z_clearance_under: type === 'SINK' ? 0.72 : undefined,
+      rotation_deg: 0,
       is_operable: ['SWITCH', 'DOOR_HANDLE', 'INTERCOM', 'GRAB_BAR', 'SINK'].includes(type)
     };
 
@@ -127,75 +130,81 @@ export const ItemToolbar: React.FC<ItemToolbarProps> = ({
     onSelectEntity('item', newItemId, targetNode.node_id);
   };
 
+  const panelBg = isDark
+    ? 'bg-slate-900/95 border-slate-700/80 text-slate-200'
+    : 'bg-white/95 border-slate-300 text-slate-800 shadow-md';
+
+  const hoverBg = isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100';
+
   return (
     <div className="absolute top-4 left-4 flex flex-col space-y-2 select-none z-10">
-      <div className="bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-lg p-1.5 shadow-xl flex flex-col space-y-1">
-        <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 uppercase tracking-wider">
+      <div className={`backdrop-blur border rounded-lg p-1.5 shadow-xl flex flex-col space-y-1 ${panelBg}`}>
+        <span className="text-[10px] font-bold opacity-60 px-2 py-0.5 uppercase tracking-wider">
           Insertar Recintos
         </span>
         <button
           onClick={() => handleAddRoom('ACCESO_PRINCIPAL')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-sky-400 rounded transition-colors"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
           title="Crear Acceso Principal"
         >
-          <SquareDashedBottom className="w-3.5 h-3.5 text-sky-400" />
+          <SquareDashedBottom className="w-3.5 h-3.5 text-sky-500" />
           <span>Acceso Principal</span>
         </button>
         <button
           onClick={() => handleAddRoom('RESTROOM_ACCESSIBLE')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-emerald-400 rounded transition-colors"
-          title="Crear Baño Accesible Universal (D.S. 50)"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
+          title="Crear Ba�o Accesible Universal (D.S. 50)"
         >
-          <Bath className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Baño Accesible</span>
+          <Bath className="w-3.5 h-3.5 text-emerald-500" />
+          <span>Ba�o Accesible</span>
         </button>
         <button
           onClick={() => handleAddRoom('BEDROOM_ACCESSIBLE')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-indigo-400 rounded transition-colors"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
           title="Crear Dormitorio Accesible"
         >
-          <BedDouble className="w-3.5 h-3.5 text-indigo-400" />
+          <BedDouble className="w-3.5 h-3.5 text-indigo-500" />
           <span>Dormitorio</span>
         </button>
         <button
           onClick={() => handleAddRoom('CIRCULATION_CORRIDOR')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-amber-400 rounded transition-colors"
-          title="Crear Pasillo de Circulación"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
+          title="Crear Pasillo de Circulaci�n"
         >
-          <Grid className="w-3.5 h-3.5 text-amber-400" />
+          <Grid className="w-3.5 h-3.5 text-amber-500" />
           <span>Pasillo Flujo</span>
         </button>
       </div>
 
-      <div className="bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-lg p-1.5 shadow-xl flex flex-col space-y-1">
-        <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 uppercase tracking-wider">
+      <div className={`backdrop-blur border rounded-lg p-1.5 shadow-xl flex flex-col space-y-1 ${panelBg}`}>
+        <span className="text-[10px] font-bold opacity-60 px-2 py-0.5 uppercase tracking-wider">
           Conectores & Artefactos
         </span>
         <button
           onClick={handleAddDoor}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-emerald-400 rounded transition-colors font-medium"
-          title="Insertar Puerta Accesible (≥ 0.80 m)"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded font-medium transition-colors ${hoverBg}`}
+          title="Insertar Puerta Accesible (= 0.80 m)"
         >
-          <DoorOpen className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Puerta (≥0.80m)</span>
+          <DoorOpen className="w-3.5 h-3.5 text-emerald-500" />
+          <span>Puerta (=0.80m)</span>
         </button>
         <button
           onClick={() => handleAddItem('TOILET')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-sky-400 rounded transition-colors"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
         >
           <span>Inodoro Universal</span>
         </button>
         <button
           onClick={() => handleAddItem('SINK')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-sky-400 rounded transition-colors"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
         >
           <span>Lavamanos Z=0.80</span>
         </button>
         <button
           onClick={() => handleAddItem('SWITCH')}
-          className="flex items-center space-x-2 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-emerald-400 rounded transition-colors"
+          className={`flex items-center space-x-2 px-2.5 py-1.5 text-xs rounded transition-colors ${hoverBg}`}
         >
-          <ToggleLeft className="w-3.5 h-3.5 text-emerald-400" />
+          <ToggleLeft className="w-3.5 h-3.5 text-emerald-500" />
           <span>Interruptor Z=1.00</span>
         </button>
       </div>

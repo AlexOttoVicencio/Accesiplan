@@ -6,7 +6,7 @@ import {
   Point2D,
   ITEM_TYPE_LABELS
 } from '../types/oguc';
-import { findTurningRadiusCircle, getPolygonBounds } from './graph';
+import { findTurningRadiusCircle, getPolygonBounds, RotatedObstacle } from './graph';
 
 /**
  * Regla R1 - Ancho de Puerta (OGUC Art. 2.2.8 / 4.1.7)
@@ -33,9 +33,10 @@ export function evaluateR1_DoorWidth(edge: SpatialEdge): RuleViolation | null {
 }
 
 /**
- * Regla R2 - Radio de Giro en Piso (OGUC Art. 2.2.8 / D.S. 50)
+ * Regla R2 - Radio de Giro Avanzado con Artefactos Rotados (OGUC Art. 2.2.8 / D.S. 50)
  * Inserción de un círculo con diámetro D = 1.50 m (R = 0.75 m) en el plano 2D de recintos clave.
- * La intersección con polígonos de muros o ítems fijos en piso genera una alerta WARN_TURNING_RADIUS.
+ * Colisión extendida: evalúa la intersección con muros perimetrales y con el polígono/bounding box
+ * de todos los ítems y artefactos internos rotados según su rotation_deg (0° a 360°).
  */
 export function evaluateR2_TurningRadius(
   node: SpatialNode
@@ -58,14 +59,15 @@ export function evaluateR2_TurningRadius(
     };
   }
 
-  // Extraer obstáculos fijos (bounding box de los ítems en piso)
-  const floorObstacles = node.items
+  // Extraer obstáculos internos con sus dimensiones y rotación exacta
+  const floorObstacles: RotatedObstacle[] = (node.items || [])
     .filter(itm => ['TOILET', 'SINK', 'SHOWER', 'BED', 'TABLE', 'OBSTACLE'].includes(itm.type))
     .map(itm => ({
       x: itm.pos_x,
       y: itm.pos_y,
       width: itm.width || 0.50,
-      depth: itm.depth || 0.50
+      depth: itm.depth || 0.50,
+      rotation_deg: itm.rotation_deg || 0
     }));
 
   const targetRadius = 0.75; // D = 1.50 m
@@ -79,11 +81,11 @@ export function evaluateR2_TurningRadius(
       severity: 'WARNING',
       oguc_article: 'OGUC D.S. 50 Art. 2.2.8',
       node_id: node.node_id,
-      title: 'Radio de Giro D=1.50 m Insuficiente o Bloqueado',
-      description: `El recinto '${node.label}' no dispone de un círculo libre de giro de diámetro 1.50 m libre de muros e ítems fijos. El diámetro libre máximo encontrado es de ${foundDiam} m.`,
+      title: 'Radio de Giro D=1.50 m Insuficiente o Bloqueado por Artefactos',
+      description: `El recinto '${node.label}' no dispone de un círculo libre de giro de diámetro 1.50 m libre de muros e ítems rotados. El diámetro libre máximo encontrado es de ${foundDiam} m.`,
       current_value: `D = ${foundDiam} m`,
       required_value: 'D >= 1.50 m',
-      suggested_fix: 'Reubicar artefactos o ampliar la geometría del recinto para habilitar un círculo libre de rotación de 1.50 m.',
+      suggested_fix: 'Reubicar o rotar artefactos o ampliar las dimensiones del recinto para habilitar un círculo libre de rotación de 1.50 m.',
       target_coords: result.center
     };
     return { violation, center: result.center, radiusFound: result.maxRadiusFound, required: true };
@@ -142,7 +144,7 @@ export function evaluateR3_VerticalZ(node: SpatialNode, item: SpatialItem): Rule
         description: `El espacio libre bajo el lavamanos '${itemLabel}' es de ${clearUnder.toFixed(2)} m. La norma exige un mínimo de 0.70 m para permitir la aproximación frontal de usuarios en silla de ruedas.`,
         current_value: `Z_libre = ${clearUnder.toFixed(2)} m`,
         required_value: '>= 0.70 m',
-        suggested_fix: 'Elevar la altura de la cubierta o retirar pedestales o muebles inferiores para garantizar 0.70 m libres.',
+        suggested_fix: 'Elevar la altura de la cubierta o retirar muebles inferiores para garantizar 0.70 m libres.',
         target_coords: { x: item.pos_x, y: item.pos_y }
       });
     }

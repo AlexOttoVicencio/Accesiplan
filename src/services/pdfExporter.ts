@@ -1,11 +1,7 @@
-import { jsPDF } from 'jspdf';
+﻿import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ProjectData, DiagnosticResult, NODE_TYPE_LABELS } from '../types/oguc';
 
-/**
- * Pipeline de Generación de Informes Técnicos de Accesibilidad en PDF
- * Cumple con especificaciones OGUC Chile D.S. 50 / Título 2 Cap. 2
- */
 export async function generateOgucReportPdf(
   project: ProjectData,
   diagnostics: DiagnosticResult,
@@ -21,7 +17,7 @@ export async function generateOgucReportPdf(
   const pageHeight = doc.internal.pageSize.getHeight();
   let currentY = 15;
 
-  // --- Encabezado Oficial ---
+  // Encabezado Oficial Sobrio y Profesional
   doc.setFillColor(15, 23, 42); // Slate 900
   doc.rect(0, 0, pageWidth, 28, 'F');
 
@@ -32,13 +28,13 @@ export async function generateOgucReportPdf(
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(148, 163, 184); // Slate 400
+  doc.setTextColor(148, 163, 184);
   doc.text('Validación Espacial y Topológica Normativa | OGUC Chile D.S. 50 - Título 2 Cap. 2', 14, 18);
   doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL')}`, 14, 23);
 
-  // Badge de Estado Global
+  // Badge de Estado Global (plano y estático)
   const isPass = diagnostics.compliance_percentage === 100;
-  doc.setFillColor(isPass ? 16 : 239, isPass ? 185 : 68, isPass ? 129 : 68); // Verde o Rojo
+  doc.setFillColor(isPass ? 16 : 239, isPass ? 185 : 68, isPass ? 129 : 68);
   doc.roundedRect(pageWidth - 65, 8, 51, 14, 2, 2, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
@@ -47,7 +43,7 @@ export async function generateOgucReportPdf(
 
   currentY = 36;
 
-  // --- Ficha del Proyecto ---
+  // 1. Ficha del Proyecto
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
@@ -75,8 +71,7 @@ export async function generateOgucReportPdf(
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 8;
-
-  // --- Resumen de Métricas ---
+  // 2. Resumen Ejecutivo
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text('2. RESUMEN EJECUTIVO Y MÉTRICAS DE ACCESIBILIDAD', 14, currentY);
@@ -86,7 +81,7 @@ export async function generateOgucReportPdf(
     { label: 'Recintos Conformes', value: `${diagnostics.compliant_nodes} / ${diagnostics.total_nodes}`, color: [16, 185, 129] },
     { label: 'Infracciones Bloqueantes', value: `${diagnostics.violations.filter(v => v.severity === 'BLOCKING_ERROR').length}`, color: [239, 68, 68] },
     { label: 'Advertencias Ergonomía', value: `${diagnostics.violations.filter(v => v.severity === 'WARNING').length}`, color: [245, 158, 11] },
-    { label: 'Nodos Huérfanos/Aislados', value: `${diagnostics.orphan_nodes}`, color: [239, 68, 68] }
+    { label: 'Nodos Huérfanos/Sin Puerta', value: `${diagnostics.orphan_nodes}`, color: [239, 68, 68] }
   ];
 
   const boxWidth = (pageWidth - 28 - 9) / 4;
@@ -112,7 +107,7 @@ export async function generateOgucReportPdf(
 
   currentY += 22;
 
-  // --- Snapshot del Plano Vectorial si está presente ---
+  // 3. Captura Gráfica del Plano 2.5D
   if (canvasSnapshotDataUrl) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
@@ -132,7 +127,7 @@ export async function generateOgucReportPdf(
     }
   }
 
-  // --- Matriz de Cumplimiento por Recinto ---
+  // 4. Matriz de Cumplimiento
   if (currentY > pageHeight - 60) {
     doc.addPage();
     currentY = 20;
@@ -146,14 +141,17 @@ export async function generateOgucReportPdf(
 
   const nodeRows = project.nodes.map(node => {
     const evalData = diagnostics.node_evaluations[node.node_id];
-    const statusText = evalData.status === 'COMPLIANT'
+    const statusText = !evalData.has_door
+      ? 'SIN PUERTA'
+      : evalData.status === 'COMPLIANT'
       ? 'CONFORME'
       : evalData.status === 'WARNING'
       ? 'CON ADVERTENCIA'
       : evalData.status === 'ORPHAN'
-      ? 'AISLADO (HUÉRFANO)'
+      ? 'AISLADO'
       : 'NO CONFORME';
 
+    const dims = node.dimensions ? `${node.dimensions.width_m}x${node.dimensions.length_m}m` : '-';
     const r1 = evalData.r1_door_status === 'PASS' ? 'CUMPLE (>=0.80)' : evalData.r1_door_status === 'FAIL' ? 'FALLA (<0.80)' : 'N/A';
     const r2 = evalData.r2_turning_radius === 'PASS' ? 'CUMPLE (1.50m)' : evalData.r2_turning_radius === 'WARN' ? 'INSUFICIENTE' : 'N/A';
     const r3 = evalData.r3_z_installation === 'PASS' ? 'CUMPLE' : evalData.r3_z_installation === 'FAIL' ? 'FALLA' : 'N/A';
@@ -163,7 +161,7 @@ export async function generateOgucReportPdf(
     return [
       node.node_id,
       node.label,
-      NODE_TYPE_LABELS[node.type] || node.type,
+      dims,
       `${evalData.area_m2.toFixed(2)} m²`,
       r1,
       r2,
@@ -177,31 +175,16 @@ export async function generateOgucReportPdf(
   autoTable(doc, {
     startY: currentY,
     theme: 'grid',
-    head: [['ID', 'Recinto', 'Tipo OGUC', 'Área', 'R1 Puertas', 'R2 Giro', 'R3 Z', 'R4 Transf.', 'Ruta BFS', 'Estado']],
+    head: [['ID', 'Recinto', 'Dim. (WxL)', 'Área', 'R1 Puertas', 'R2 Giro', 'R3 Z', 'R4 Transf.', 'Ruta BFS', 'Estado']],
     body: nodeRows,
     headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
     bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
-    didParseCell: function(data) {
-      if (data.section === 'body' && data.column.index === 9) {
-        const val = data.cell.raw;
-        if (val === 'CONFORME') {
-          data.cell.styles.textColor = [16, 185, 129];
-          data.cell.styles.fontStyle = 'bold';
-        } else if (val === 'CON ADVERTENCIA') {
-          data.cell.styles.textColor = [217, 119, 6];
-          data.cell.styles.fontStyle = 'bold';
-        } else {
-          data.cell.styles.textColor = [220, 38, 38];
-          data.cell.styles.fontStyle = 'bold';
-        }
-      }
-    },
     margin: { left: 14, right: 14 }
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 8;
 
-  // --- Desglose de Infracciones y Remedición ---
+  // 5. Registro Detallado de Infracciones
   if (diagnostics.violations.length > 0) {
     if (currentY > pageHeight - 60) {
       doc.addPage();
@@ -238,11 +221,9 @@ export async function generateOgucReportPdf(
       },
       margin: { left: 14, right: 14 }
     });
-
-    currentY = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  // --- Pie de Página y Firma ---
+  // Pie de Página
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -255,14 +236,13 @@ export async function generateOgucReportPdf(
       pageHeight - 8
     );
     doc.text(
-      'Documento generado automáticamente conforme al Decreto Supremo N° 50 (V. y U.) de Accesibilidad Universal.',
+      'Documento oficial generado conforme al Decreto Supremo N° 50 (V. y U.) de Accesibilidad Universal.',
       pageWidth - 14,
       pageHeight - 8,
       { align: 'right' }
     );
   }
 
-  // Descarga del documento
   const filename = `Informe_Accesibilidad_OGUC_${project.project_id}_${Date.now()}.pdf`;
   doc.save(filename);
 }

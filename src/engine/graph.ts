@@ -50,6 +50,23 @@ export function calculateCentroid(points: Point2D[]): Point2D {
 }
 
 /**
+ * Genera un polígono rectangular a partir del origen (x, y) y dimensiones (ancho, largo)
+ */
+export function generatePolygonFromDimensions(
+  originX: number,
+  originY: number,
+  width_m: number,
+  length_m: number
+): Point2D[] {
+  return [
+    { x: Number(originX.toFixed(2)), y: Number(originY.toFixed(2)) },
+    { x: Number((originX + width_m).toFixed(2)), y: Number(originY.toFixed(2)) },
+    { x: Number((originX + width_m).toFixed(2)), y: Number((originY + length_m).toFixed(2)) },
+    { x: Number(originX.toFixed(2)), y: Number((originY + length_m).toFixed(2)) }
+  ];
+}
+
+/**
  * Bounding Box de un polígono
  */
 export function getPolygonBounds(points: Point2D[]) {
@@ -113,12 +130,45 @@ export function distanceToPolygonEdges(point: Point2D, polygon: Point2D[]): numb
   return minDist;
 }
 
+export interface RotatedObstacle {
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  rotation_deg?: number;
+}
+
 /**
- * Busca si cabe un círculo de diámetro D = 1.50m (R = 0.75m) libre de muros y obstáculos en el recinto
+ * Distancia euclidiana mínima exacta desde un punto a un rectángulo rotado (Oriented Bounding Box)
+ */
+export function distanceToRotatedRectangle(point: Point2D, obs: RotatedObstacle): number {
+  const cx = obs.x + obs.width / 2;
+  const cy = obs.y + obs.depth / 2;
+  const angleRad = ((obs.rotation_deg || 0) * Math.PI) / 180;
+
+  // Trasladar punto relativo al centro del obstáculo
+  const relX = point.x - cx;
+  const relY = point.y - cy;
+
+  // Rotar el punto en sentido inverso para alinear con el eje local del rectángulo
+  const localX = relX * Math.cos(-angleRad) - relY * Math.sin(-angleRad);
+  const localY = relX * Math.sin(-angleRad) + relY * Math.cos(-angleRad);
+
+  const halfW = obs.width / 2;
+  const halfD = obs.depth / 2;
+
+  const dx = Math.max(Math.abs(localX) - halfW, 0);
+  const dy = Math.max(Math.abs(localY) - halfD, 0);
+
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Busca si cabe un círculo de diámetro D = 1.50m (R = 0.75m) libre de muros y de todos los artefactos rotados (0° a 360°)
  */
 export function findTurningRadiusCircle(
   polygon: Point2D[],
-  obstacles: { x: number; y: number; width: number; depth: number }[],
+  obstacles: RotatedObstacle[],
   targetRadius: number = 0.75
 ): { fits: boolean; center: Point2D; maxRadiusFound: number } {
   const bounds = getPolygonBounds(polygon);
@@ -129,7 +179,7 @@ export function findTurningRadiusCircle(
   }
 
   // Grid de muestreo fino en el recinto
-  const step = 0.10; // muestreo cada 10 cm
+  const step = 0.08;
   let bestCenter: Point2D = centroid;
   let maxClearance = 0;
 
@@ -138,21 +188,12 @@ export function findTurningRadiusCircle(
       const candidate: Point2D = { x, y };
       if (!isPointInPolygon(candidate, polygon)) continue;
 
-      // Distancia a muros
+      // Distancia a muros perimetrales
       let clearance = distanceToPolygonEdges(candidate, polygon);
 
-      // Distancia a obstáculos fijos (bounding box de ítems)
+      // Colisión extendida: Distancia a cada ítem/artefacto rotado según su rotation_deg
       for (const obs of obstacles) {
-        const obsLeft = obs.x;
-        const obsRight = obs.x + obs.width;
-        const obsTop = obs.y;
-        const obsBottom = obs.y + obs.depth;
-
-        // Distancia euclidiana aproximada al rectángulo del obstáculo
-        const dx = Math.max(obsLeft - candidate.x, 0, candidate.x - obsRight);
-        const dy = Math.max(obsTop - candidate.y, 0, candidate.y - obsBottom);
-        const distToObs = Math.hypot(dx, dy);
-
+        const distToObs = distanceToRotatedRectangle(candidate, obs);
         if (distToObs < clearance) {
           clearance = distToObs;
         }
@@ -176,15 +217,25 @@ export interface BFSResult {
   reachableMap: Map<string, { reachable: boolean; depth: number; path: string[] }>;
   traversableEdges: Set<string>;
   rootNodeId: string;
+  roomsWithDoors: Set<string>;
 }
 
 /**
  * Evaluación de Conectividad mediante Recorrido en Anchura (BFS)
  * desde el nodo 'ACCESO_PRINCIPAL'. Una arista sólo es transitable si clear_width >= 0.80 m.
+ * También verifica qué recintos tienen al menos una arista/puerta vinculada mediante los selectores.
  */
 export function evaluateAccessibilityBFS(project: ProjectData): BFSResult {
   const reachableMap = new Map<string, { reachable: boolean; depth: number; path: string[] }>();
   const traversableEdges = new Set<string>();
+  const roomsWithDoors = new Set<string>();
+
+  // Registrar todas las habitaciones que tienen al menos una puerta asignada
+  for (const edge of project.edges) {
+    const [u, v] = edge.connects;
+    if (u) roomsWithDoors.add(u);
+    if (v) roomsWithDoors.add(v);
+  }
 
   // Inicializar todos los nodos como no alcanzables
   for (const node of project.nodes) {
@@ -195,7 +246,7 @@ export function evaluateAccessibilityBFS(project: ProjectData): BFSResult {
   const rootNode = project.nodes.find(n => n.type === 'ACCESO_PRINCIPAL') || project.nodes[0];
 
   if (!rootNode) {
-    return { reachableMap, traversableEdges, rootNodeId: '' };
+    return { reachableMap, traversableEdges, rootNodeId: '', roomsWithDoors };
   }
 
   const rootId = rootNode.node_id;
@@ -251,6 +302,7 @@ export function evaluateAccessibilityBFS(project: ProjectData): BFSResult {
   return {
     reachableMap,
     traversableEdges,
-    rootNodeId: rootId
+    rootNodeId: rootId,
+    roomsWithDoors
   };
 }

@@ -6,12 +6,13 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
   normative_framework: 'OGUC_CHILE_TITULO2_CAP2',
   building_level: 1,
   author: 'Arq. Asesor Accesibilidad Universal',
-  date: '2026-08-26',
+  date: '2026-10-26',
   nodes: [
     {
       node_id: 'REC_ACCESO',
       label: 'Acceso y Hall Principal',
       type: 'ACCESO_PRINCIPAL',
+      dimensions: { width_m: 2.2, length_m: 2.0 },
       polygon_2d: [
         { x: 0.0, y: 0.0 },
         { x: 2.2, y: 0.0 },
@@ -27,6 +28,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_x: 0.20,
           pos_y: 0.10,
           z_installation: 1.10,
+          rotation_deg: 0,
           is_operable: true
         },
         {
@@ -36,6 +38,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_x: 2.00,
           pos_y: 0.30,
           z_installation: 1.00,
+          rotation_deg: 0,
           is_operable: true
         }
       ]
@@ -44,6 +47,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       node_id: 'REC_PASILLO',
       label: 'Pasillo de Circulación Principal',
       type: 'CIRCULATION_CORRIDOR',
+      dimensions: { width_m: 2.6, length_m: 1.4 },
       polygon_2d: [
         { x: 2.2, y: 0.0 },
         { x: 4.8, y: 0.0 },
@@ -59,6 +63,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_x: 2.40,
           pos_y: 0.10,
           z_installation: 0.95,
+          rotation_deg: 0,
           is_operable: true
         }
       ]
@@ -67,6 +72,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       node_id: 'REC_BANO_ACC',
       label: 'Baño Principal Accesible D.S.50',
       type: 'RESTROOM_ACCESSIBLE',
+      dimensions: { width_m: 2.6, length_m: 2.4 },
       polygon_2d: [
         { x: 2.2, y: 1.4 },
         { x: 4.8, y: 1.4 },
@@ -83,7 +89,8 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_y: 3.00,
           width: 0.45,
           depth: 0.70,
-          z_installation: 0.48
+          z_installation: 0.48,
+          rotation_deg: 0
         },
         {
           item_id: 'ITM_GRAB_1',
@@ -92,6 +99,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_x: 2.90,
           pos_y: 3.10,
           z_installation: 0.80,
+          rotation_deg: 90,
           is_operable: true
         },
         {
@@ -104,6 +112,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           depth: 0.50,
           z_installation: 0.80,
           z_clearance_under: 0.72,
+          rotation_deg: 0,
           is_operable: true
         },
         {
@@ -113,6 +122,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_x: 2.30,
           pos_y: 1.60,
           z_installation: 1.00,
+          rotation_deg: 0,
           is_operable: true
         }
       ]
@@ -121,6 +131,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       node_id: 'REC_DORMITORIO',
       label: 'Dormitorio Accesible',
       type: 'BEDROOM_ACCESSIBLE',
+      dimensions: { width_m: 3.6, length_m: 3.8 },
       polygon_2d: [
         { x: 4.8, y: 0.0 },
         { x: 8.4, y: 0.0 },
@@ -137,7 +148,8 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_y: 0.40,
           width: 1.60,
           depth: 1.90,
-          z_installation: 0.50
+          z_installation: 0.50,
+          rotation_deg: 0
         },
         {
           item_id: 'ITM_SW_DORM_CABECERA',
@@ -146,6 +158,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           pos_x: 7.30,
           pos_y: 1.50,
           z_installation: 0.85,
+          rotation_deg: 0,
           is_operable: true
         }
       ]
@@ -154,6 +167,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       node_id: 'REC_ESTAR',
       label: 'Estar - Comedor Inclusivo',
       type: 'LIVING_ROOM',
+      dimensions: { width_m: 2.6, length_m: 3.2 },
       polygon_2d: [
         { x: 0.0, y: 2.0 },
         { x: 2.6, y: 2.0 },
@@ -171,7 +185,8 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
           width: 1.00,
           depth: 0.70,
           z_installation: 0.78,
-          z_clearance_under: 0.72
+          z_clearance_under: 0.72,
+          rotation_deg: 0
         }
       ]
     }
@@ -183,6 +198,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       connects: ['REC_ACCESO', 'REC_ACCESO'],
       clear_width: 0.90,
       position: { x: 0.0, y: 1.0 },
+      rotation_deg: 90,
       swing_direction: 'IN_A'
     },
     {
@@ -191,6 +207,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       connects: ['REC_ACCESO', 'REC_PASILLO'],
       clear_width: 0.90,
       position: { x: 2.2, y: 0.7 },
+      rotation_deg: 90,
       swing_direction: 'SLIDING'
     },
     {
@@ -199,6 +216,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       connects: ['REC_PASILLO', 'REC_BANO_ACC'],
       clear_width: 0.85,
       position: { x: 3.2, y: 1.4 },
+      rotation_deg: 0,
       swing_direction: 'IN_A'
     },
     {
@@ -207,6 +225,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       connects: ['REC_PASILLO', 'REC_DORMITORIO'],
       clear_width: 0.85,
       position: { x: 4.8, y: 0.7 },
+      rotation_deg: 90,
       swing_direction: 'IN_A'
     },
     {
@@ -215,6 +234,7 @@ export const SAMPLE_PROJECT_COMPLIANT: ProjectData = {
       connects: ['REC_ACCESO', 'REC_ESTAR'],
       clear_width: 1.10,
       position: { x: 1.1, y: 2.0 },
+      rotation_deg: 0,
       swing_direction: 'SLIDING'
     }
   ]
@@ -226,12 +246,13 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
   normative_framework: 'OGUC_CHILE_TITULO2_CAP2',
   building_level: 1,
   author: 'Revisión Técnica OGUC',
-  date: '2026-08-26',
+  date: '2026-10-26',
   nodes: [
     {
       node_id: 'REC_ACCESO',
       label: 'Acceso Principal',
       type: 'ACCESO_PRINCIPAL',
+      dimensions: { width_m: 2.0, length_m: 1.8 },
       polygon_2d: [
         { x: 0.0, y: 0.0 },
         { x: 2.0, y: 0.0 },
@@ -247,6 +268,7 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
           pos_x: 0.20,
           pos_y: 0.20,
           z_installation: 1.55, // Infracción R3: > 1.20m
+          rotation_deg: 0,
           is_operable: true
         }
       ]
@@ -255,6 +277,7 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
       node_id: 'REC_BANO_ANG',
       label: 'Baño Reducido No Adaptado',
       type: 'RESTROOM_ACCESSIBLE',
+      dimensions: { width_m: 1.4, length_m: 1.4 },
       polygon_2d: [
         { x: 2.0, y: 0.0 },
         { x: 3.4, y: 0.0 },
@@ -271,7 +294,8 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
           pos_y: 0.20,
           width: 0.45,
           depth: 0.65,
-          z_installation: 0.45
+          z_installation: 0.45,
+          rotation_deg: 45
         },
         {
           item_id: 'ITM_SINK_BAJO',
@@ -283,14 +307,16 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
           depth: 0.45,
           z_installation: 0.85,
           z_clearance_under: 0.50, // Infracción R3: < 0.70m
+          rotation_deg: 0,
           is_operable: true
         }
       ]
     },
     {
       node_id: 'REC_DORM_AISLADO',
-      label: 'Dormitorio Aislado (Nodo Huérfano)',
+      label: 'Dormitorio Aislado (Sin Puerta)',
       type: 'BEDROOM_ACCESSIBLE',
+      dimensions: { width_m: 3.0, length_m: 3.0 },
       polygon_2d: [
         { x: 4.5, y: 0.0 },
         { x: 7.5, y: 0.0 },
@@ -307,7 +333,8 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
           pos_y: 0.5,
           width: 1.5,
           depth: 1.9,
-          z_installation: 0.50
+          z_installation: 0.50,
+          rotation_deg: 0
         }
       ]
     }
@@ -319,9 +346,10 @@ export const SAMPLE_PROJECT_NON_COMPLIANT: ProjectData = {
       connects: ['REC_ACCESO', 'REC_BANO_ANG'],
       clear_width: 0.65, // Infracción R1: < 0.80m
       position: { x: 2.0, y: 0.7 },
+      rotation_deg: 90,
       swing_direction: 'IN_B'
     }
-    // Nota: No existe puerta hacia REC_DORM_AISLADO -> Bifurcación 1 (Nodo Huérfano)
+    // Nota: REC_DORM_AISLADO no posee puerta asociada -> Bifurcación 1 (OGUC_ERR_ROOM_WITHOUT_DOOR)
   ]
 };
 
@@ -331,12 +359,13 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
   normative_framework: 'OGUC_CHILE_TITULO2_CAP2',
   building_level: 1,
   author: 'Dpto. Infraestructura Médica',
-  date: '2026-08-26',
+  date: '2026-10-26',
   nodes: [
     {
       node_id: 'REC_HALL_CLINICA',
       label: 'Hall y Sala de Espera',
       type: 'ACCESO_PRINCIPAL',
+      dimensions: { width_m: 3.5, length_m: 2.5 },
       polygon_2d: [
         { x: 0.0, y: 0.0 },
         { x: 3.5, y: 0.0 },
@@ -352,6 +381,7 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
           pos_x: 0.30,
           pos_y: 0.20,
           z_installation: 0.90,
+          rotation_deg: 0,
           is_operable: true
         }
       ]
@@ -360,6 +390,7 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
       node_id: 'REC_BANO_CLINICA',
       label: 'Baño Universal con Ducha Asistida',
       type: 'RESTROOM_ACCESSIBLE',
+      dimensions: { width_m: 3.0, length_m: 3.0 },
       polygon_2d: [
         { x: 3.5, y: 0.0 },
         { x: 6.5, y: 0.0 },
@@ -376,7 +407,8 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
           pos_y: 2.00,
           width: 0.45,
           depth: 0.70,
-          z_installation: 0.48
+          z_installation: 0.48,
+          rotation_deg: 0
         },
         {
           item_id: 'ITM_BARRA_CLINIC',
@@ -385,6 +417,7 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
           pos_x: 4.30,
           pos_y: 2.10,
           z_installation: 0.85,
+          rotation_deg: 90,
           is_operable: true
         },
         {
@@ -397,6 +430,7 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
           depth: 0.55,
           z_installation: 0.80,
           z_clearance_under: 0.73,
+          rotation_deg: 0,
           is_operable: true
         },
         {
@@ -407,7 +441,8 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
           pos_y: 0.30,
           width: 1.10,
           depth: 1.10,
-          z_installation: 0.00
+          z_installation: 0.00,
+          rotation_deg: 0
         }
       ]
     }
@@ -419,6 +454,7 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
       connects: ['REC_HALL_CLINICA', 'REC_HALL_CLINICA'],
       clear_width: 1.00,
       position: { x: 0.0, y: 1.25 },
+      rotation_deg: 90,
       swing_direction: 'SLIDING'
     },
     {
@@ -427,6 +463,7 @@ export const SAMPLE_PROJECT_CLINIC: ProjectData = {
       connects: ['REC_HALL_CLINICA', 'REC_BANO_CLINICA'],
       clear_width: 0.95,
       position: { x: 3.5, y: 1.50 },
+      rotation_deg: 90,
       swing_direction: 'SLIDING'
     }
   ]
@@ -438,12 +475,13 @@ export const SAMPLE_PROJECT_EMPTY: ProjectData = {
   normative_framework: 'OGUC_CHILE_TITULO2_CAP2',
   building_level: 1,
   author: 'Usuario Antigravity',
-  date: '2026-08-26',
+  date: '2026-10-26',
   nodes: [
     {
       node_id: 'REC_001',
       label: 'Acceso y Hall Principal',
       type: 'ACCESO_PRINCIPAL',
+      dimensions: { width_m: 3.0, length_m: 2.5 },
       polygon_2d: [
         { x: 0.0, y: 0.0 },
         { x: 3.0, y: 0.0 },

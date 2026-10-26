@@ -9,7 +9,8 @@ import {
 import {
   calculatePolygonArea,
   calculateCentroid,
-  evaluateAccessibilityBFS
+  evaluateAccessibilityBFS,
+  getPolygonBounds
 } from './graph';
 import {
   evaluateR1_DoorWidth,
@@ -20,7 +21,7 @@ import {
 
 /**
  * Motor Principal de Diagnóstico Normativo OGUC
- * Ejecuta el análisis topológico, reglas R1-R4, manejo de bifurcaciones y cálculo de cumplimiento.
+ * Ejecuta el análisis topológico, reglas R1-R4, validación obligatoria de vanos/puertas y cálculo de cumplimiento.
  */
 export function runDiagnostics(project: ProjectData): DiagnosticResult {
   const timestamp = new Date().toISOString();
@@ -70,38 +71,66 @@ export function runDiagnostics(project: ProjectData): DiagnosticResult {
     node.centroid = calculateCentroid(node.polygon_2d);
     totalItemsCount += (node.items || []).length;
 
-    // Estado BFS y Detección de Nodo Huérfano (Bifurcación 1)
-    const bfsState = bfsResult.reachableMap.get(node.node_id);
-    const isReachable = bfsState ? bfsState.reachable : false;
-    const isOrphan = !isReachable && node.type !== 'ACCESO_PRINCIPAL';
-
-    if (isOrphan) {
-      const orphanViolation: RuleViolation = {
-        id: `viol_orphan_${node.node_id}`,
-        code: 'OGUC_ERR_UNREACHABLE_NODE',
-        severity: 'BLOCKING_ERROR',
-        oguc_article: 'OGUC Art. 2.2.8 (Red de Circulación Accesible)',
-        node_id: node.node_id,
-        title: 'Recinto Aislado de la Red de Circulación Accesible',
-        description: `El recinto '${node.label}' no tiene una ruta continua accesible desde el Acceso Principal. Las puertas de acceso no existen o su ancho libre es inferior a 0.80 m.`,
-        current_value: 'Sin conexión accesible',
-        required_value: 'Ruta continua >= 0.80 m',
-        suggested_fix: 'Conectar el recinto con una puerta transitable (clear_width >= 0.80 m) hacia un pasillo o recinto conectado.',
-        target_coords: node.centroid
+    // Sincronizar dimensiones si no están definidas
+    if (!node.dimensions) {
+      const bounds = getPolygonBounds(node.polygon_2d);
+      node.dimensions = {
+        width_m: Number(bounds.width.toFixed(2)),
+        length_m: Number(bounds.height.toFixed(2))
       };
-      nodeViolations.push(orphanViolation);
-      allViolations.push(orphanViolation);
-      logs.push(`[TOPOLOGY ERROR] Nodo '${node.label}' detectado como HUÉRFANO / AISLADO`);
     }
 
     // Puertas incidentes al nodo
     const incidentEdges = project.edges.filter(
       e => e.connects[0] === node.node_id || e.connects[1] === node.node_id
     );
-    const hasDoorFailure = incidentEdges.some(e => e.clear_width < 0.80);
-    const r1Status = incidentEdges.length === 0 ? 'NA' : hasDoorFailure ? 'FAIL' : 'PASS';
+    const hasDoor = incidentEdges.length > 0 || node.type === 'ACCESO_PRINCIPAL';
 
-    // R2 - Radio de Giro en Piso
+    // Estado BFS y Detección de Nodo Huérfano (Bifurcación 1: Sin Puerta o No Alcanzable)
+    const bfsState = bfsResult.reachableMap.get(node.node_id);
+    const isReachable = bfsState ? bfsState.reachable : false;
+    const isOrphan = (!hasDoor || !isReachable) && node.type !== 'ACCESO_PRINCIPAL';
+
+    if (!hasDoor && node.type !== 'ACCESO_PRINCIPAL') {
+      const noDoorViolation: RuleViolation = {
+        id: `viol_nodoor_${node.node_id}`,
+        code: 'OGUC_ERR_ROOM_WITHOUT_DOOR',
+        severity: 'BLOCKING_ERROR',
+        oguc_article: 'OGUC Art. 2.2.8 (Conectividad y Vano Obligatorio)',
+        node_id: node.node_id,
+        title: 'Recinto sin Vano ni Puerta Asignada',
+        description: `El recinto '${node.label}' no tiene ninguna puerta asociada mediante los selectores de conectividad. Todo recinto habitable debe poseer al menos una puerta hacia la red de circulación.`,
+        current_value: '0 puertas asociadas',
+        required_value: 'Al menos 1 puerta (clear_width >= 0.80 m)',
+        suggested_fix: 'Asignar o conectar una puerta hacia este recinto usando los selectores del Inspector.',
+        target_coords: node.centroid
+      };
+      nodeViolations.push(noDoorViolation);
+      allViolations.push(noDoorViolation);
+      logs.push(`[TOPOLOGY ERROR] Recinto '${node.label}' no tiene puertas asignadas (OGUC_ERR_ROOM_WITHOUT_DOOR)`);
+    } else if (isOrphan) {
+      const orphanViolation: RuleViolation = {
+        id: `viol_orphan_${node.node_id}`,
+        code: 'OGUC_ERR_UNREACHABLE_NODE',
+        severity: 'BLOCKING_ERROR',
+        oguc_article: 'OGUC Art. 2.2.8 (Red de Circulación Continua)',
+        node_id: node.node_id,
+        title: 'Recinto Aislado de la Red de Circulación Accesible',
+        description: `El recinto '${node.label}' no tiene una ruta continua transitable desde el Acceso Principal. El ancho libre de sus puertas es inferior a 0.80 m.`,
+        current_value: 'Sin conexión accesible continua',
+        required_value: 'Ruta continua >= 0.80 m',
+        suggested_fix: 'Ampliar el ancho de la puerta a >= 0.80 m para permitir el paso accesible.',
+        target_coords: node.centroid
+      };
+      nodeViolations.push(orphanViolation);
+      allViolations.push(orphanViolation);
+      logs.push(`[TOPOLOGY ERROR] Nodo '${node.label}' detectado como AISLADO`);
+    }
+
+    const hasDoorFailure = incidentEdges.some(e => e.clear_width < 0.80);
+    const r1Status = incidentEdges.length === 0 ? (node.type === 'ACCESO_PRINCIPAL' ? 'PASS' : 'FAIL') : hasDoorFailure ? 'FAIL' : 'PASS';
+
+    // R2 - Radio de Giro en Piso (Evaluación con rotaciones)
     const r2Result = evaluateR2_TurningRadius(node);
     let r2Status: 'PASS' | 'WARN' | 'NA' = 'NA';
     if (r2Result.required) {
@@ -124,7 +153,7 @@ export function runDiagnostics(project: ProjectData): DiagnosticResult {
         for (const v of r3Violations) {
           nodeViolations.push(v);
           allViolations.push(v);
-          logs.push(`[R3 ERROR] Ítem '${item.label || item.type}' en '${node.label}' Z=${item.z_installation}m fuera de rango`);
+          logs.push(`[R3 ERROR] Ítem '${item.label || item.type}' en '${node.label}' Z=${item.z_installation}m fuera de norma`);
         }
       }
     }
@@ -145,7 +174,7 @@ export function runDiagnostics(project: ProjectData): DiagnosticResult {
       ? (hasR4Failure ? 'FAIL' : 'PASS')
       : 'NA';
 
-    // Determinación del Estado Global del Nodo (con Manejo de Bifurcaciones 1 y 2)
+    // Determinación del Estado Global del Nodo (Manejo de Bifurcaciones 1 y 2)
     let nodeStatus: 'COMPLIANT' | 'WARNING' | 'NON_COMPLIANT' | 'ORPHAN' = 'COMPLIANT';
 
     const hasBlockingErrors = nodeViolations.some(v => v.severity === 'BLOCKING_ERROR');
@@ -156,13 +185,13 @@ export function runDiagnostics(project: ProjectData): DiagnosticResult {
       orphanCount++;
       nonCompliantCount++;
     } else if (hasBlockingErrors || hasR3Failure) {
-      // Bifurcación 2: Infracción Vertical Z Prioritaria sobreescribe estado conforme 2D
+      // Bifurcación 2: Infracción Vertical Prioritaria sobreescribe estado conforme 2D
       nodeStatus = 'NON_COMPLIANT';
       nonCompliantCount++;
     } else if (hasWarnings) {
       nodeStatus = 'WARNING';
       warningCount++;
-      compliantCount++; // Cumple base con advertencias de ergonomía
+      compliantCount++;
     } else {
       nodeStatus = 'COMPLIANT';
       compliantCount++;
@@ -172,6 +201,7 @@ export function runDiagnostics(project: ProjectData): DiagnosticResult {
       node_id: node.node_id,
       status: nodeStatus,
       is_orphan: isOrphan,
+      has_door: hasDoor,
       is_reachable_bfs: isReachable,
       bfs_depth: bfsState?.depth,
       bfs_path: bfsState?.path,
@@ -188,7 +218,6 @@ export function runDiagnostics(project: ProjectData): DiagnosticResult {
 
   // 4. Cálculo de Porcentaje de Cumplimiento Normativo
   const totalNodes = project.nodes.length;
-  // Solo se consideran 100% conformes aquellos sin errores bloqueantes y no huérfanos
   const strictlyCompliantNodes = Object.values(nodeEvaluations).filter(
     n => n.status === 'COMPLIANT'
   ).length;

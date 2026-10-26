@@ -26,26 +26,32 @@ export interface Point2D {
   y: number;
 }
 
+export interface NodeDimensions {
+  width_m: number;
+  length_m: number;
+}
+
 export interface SpatialItem {
   item_id: string;
   label: string;
   type: ItemType;
-  pos_x: number; // en metros respecto al origen del proyecto o recinto
+  pos_x: number; // en metros
   pos_y: number;
-  width?: number; // ancho en metros (ej. 0.60)
-  depth?: number; // fondo en metros (ej. 0.50)
-  z_installation: number; // cota Z de instalación en metros (ej. 0.80)
-  z_clearance_under?: number; // espacio libre inferior en metros (ej. 0.70)
+  width?: number; // en metros
+  depth?: number; // en metros
+  z_installation: number; // cota Z de instalación en metros
+  z_clearance_under?: number; // espacio libre inferior en metros
   is_operable?: boolean; // si es elemento de accionamiento manual
-  rotation?: number; // grados (0, 90, 180, 270)
+  rotation_deg?: number; // ángulo de rotación libre de 0° a 360°
 }
 
 export interface SpatialNode {
   node_id: string;
   label: string;
   type: NodeType;
+  dimensions?: NodeDimensions; // ancho y largo en metros
   polygon_2d: Point2D[]; // vértices en metros
-  height_z: number; // altura libre en metros (ej. 2.40)
+  height_z: number; // altura libre en metros
   items: SpatialItem[];
   calculatedArea?: number;
   centroid?: Point2D;
@@ -55,10 +61,11 @@ export interface SpatialEdge {
   edge_id: string;
   label?: string;
   connects: [string, string]; // [node_id_A, node_id_B]
-  clear_width: number; // ancho libre de paso en metros (ej. 0.85)
-  position: Point2D; // coordenadas del punto central de la puerta
+  clear_width: number; // ancho libre de paso en metros
+  position: Point2D; // coordenadas de posición
+  rotation_deg?: number; // orientación vectorial de 0° a 360°
   swing_direction?: 'IN_A' | 'IN_B' | 'SLIDING' | 'DOUBLE';
-  threshold_height?: number; // resalto en metros (ej. 0.00 a 0.02)
+  threshold_height?: number; // resalto en metros
 }
 
 export interface ProjectData {
@@ -78,6 +85,7 @@ export type ViolationCode =
   | 'ERR_DOOR_WIDTH'
   | 'WARN_TURNING_RADIUS'
   | 'ERR_Z_INSTALLATION'
+  | 'OGUC_ERR_ROOM_WITHOUT_DOOR'
   | 'OGUC_ERR_UNREACHABLE_NODE'
   | 'ERR_APPROACH_CLEARANCE'
   | 'ERR_UNDER_SINK_CLEARANCE'
@@ -105,6 +113,7 @@ export interface NodeEvaluation {
   node_id: string;
   status: NodeComplianceStatus;
   is_orphan: boolean;
+  has_door: boolean;
   is_reachable_bfs: boolean;
   bfs_depth?: number;
   bfs_path?: string[];

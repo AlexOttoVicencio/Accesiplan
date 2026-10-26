@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import confetti from 'canvas-confetti';
 import { ProjectData } from './types/oguc';
 import { runDiagnostics } from './engine/diagnostics';
 import {
@@ -18,20 +17,23 @@ import { ItemToolbar } from './components/ItemToolbar';
 import { TopologicalGraphModal } from './components/TopologicalGraphModal';
 
 export const App: React.FC = () => {
-  // Estado Principal del Proyecto
+  // Estado del Proyecto
   const [project, setProject] = useState<ProjectData>(SAMPLE_PROJECT_COMPLIANT);
 
-  // Modo de Visualizaci贸n (Planta 2D vs Axonometr铆a Isom茅trica 2.5D)
+  // Tema: Modo Oscuro (predeterminado) o Modo Claro
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Modo de Visualizaci髇 (Planta 2D vs Axonometr韆 Isom閠rica 2.5D)
   const [viewMode, setViewMode] = useState<'2D' | '2.5D'>('2D');
 
-  // Selecci贸n Contextual
+  // Selecci髇 Contextual
   const [selectedEntity, setSelectedEntity] = useState<{
     type: 'node' | 'edge' | 'item' | null;
     id: string | null;
     subId?: string | null;
   }>({ type: null, id: null });
 
-  // Toggles de Capas T茅cnicas
+  // Toggles de Capas T閏nicas
   const [showTurningRadius, setShowTurningRadius] = useState<boolean>(true);
   const [showTransferZones, setShowTransferZones] = useState<boolean>(true);
   const [showBfsPaths, setShowBfsPaths] = useState<boolean>(true);
@@ -39,37 +41,38 @@ export const App: React.FC = () => {
   const [showZHeights, setShowZHeights] = useState<boolean>(true);
   const [snapGrid, setSnapGrid] = useState<number>(0.10);
 
-  // Modal del Grafo Topol贸gico
+  // Modal del Grafo Topol骻ico
   const [isGraphModalOpen, setIsGraphModalOpen] = useState<boolean>(false);
 
   // Referencia al Canvas para Captura de Informe PDF
   const canvasDomRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Ejecuci贸n en Tiempo Real del Motor de Diagn贸stico Normativo OGUC
+  // Sincronizar clase 'dark' en el elemento ra韟 HTML
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  // Ejecuci髇 en Tiempo Real del Motor de Diagn髎tico Normativo OGUC
   const diagnostics = useMemo(() => {
     return runDiagnostics(project);
   }, [project]);
 
-  // Celebraci贸n al alcanzar 100% de cumplimiento
-  const prevPercentageRef = useRef<number>(diagnostics.compliance_percentage);
-  useEffect(() => {
-    if (diagnostics.compliance_percentage === 100 && prevPercentageRef.current < 100) {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    }
-    prevPercentageRef.current = diagnostics.compliance_percentage;
-  }, [diagnostics.compliance_percentage]);
-
-  // Manejador de Selecci贸n de Entidad
+  // Manejador de Selecci髇 de Entidad
   const handleSelectEntity = (
     type: 'node' | 'edge' | 'item' | null,
     id: string | null,
     subId?: string | null
   ) => {
     setSelectedEntity({ type, id, subId });
+  };
+
+  // Alternar Tema Claro / Oscuro
+  const handleToggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   // Carga de Plantillas Preconfiguradas
@@ -93,7 +96,7 @@ export const App: React.FC = () => {
     setSelectedEntity({ type: null, id: null });
   };
 
-  // Exportaci贸n del Informe Oficial OGUC en PDF
+  // Exportaci髇 del Informe Oficial OGUC en PDF
   const handleExportPdf = async () => {
     let snapshotDataUrl: string | undefined = undefined;
     if (canvasDomRef.current) {
@@ -102,7 +105,7 @@ export const App: React.FC = () => {
     await generateOgucReportPdf(project, diagnostics, snapshotDataUrl);
   };
 
-  // Exportaci贸n del Proyecto en JSON
+  // Exportaci髇 del Proyecto en JSON
   const handleExportJson = () => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(project, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -113,7 +116,7 @@ export const App: React.FC = () => {
     downloadAnchor.remove();
   };
 
-  // Importaci贸n del Proyecto desde JSON
+  // Importaci髇 del Proyecto desde JSON
   const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
@@ -125,7 +128,7 @@ export const App: React.FC = () => {
             setProject(parsed);
             setSelectedEntity({ type: null, id: null });
           } else {
-            alert('Formato de archivo JSON inv谩lido para AccesiPlan.');
+            alert('Formato de archivo JSON inv醠ido para AccesiPlan.');
           }
         } catch (err) {
           alert('Error al leer el archivo JSON.');
@@ -134,14 +137,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const isDark = theme === 'dark';
+
   return (
-    <div className="flex flex-col w-screen h-screen bg-[#0A0D14] text-slate-100 overflow-hidden select-none font-sans">
-      {/* 1. Barra de Navegaci贸n Superior */}
+    <div className={`flex flex-col w-screen h-screen overflow-hidden select-none font-sans transition-colors ${
+      isDark ? 'bg-[#0A0D14] text-slate-100' : 'bg-[#F8FAFC] text-slate-800'
+    }`}>
+      {/* 1. Barra de Navegaci髇 Superior */}
       <TopNav
         project={project}
         diagnostics={diagnostics}
         viewMode={viewMode}
         onToggleViewMode={setViewMode}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         showTurningRadius={showTurningRadius}
         onToggleTurningRadius={() => setShowTurningRadius(!showTurningRadius)}
         showTransferZones={showTransferZones}
@@ -160,12 +169,12 @@ export const App: React.FC = () => {
 
       {/* 2. Cuerpo Principal (Lienzo Central + Inspector Derecho) */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Lienzo Cartesiano de Modelado (2.5D) */}
         <div className="flex-1 h-full relative overflow-hidden">
           <Canvas25D
             project={project}
             diagnostics={diagnostics}
             viewMode={viewMode}
+            theme={theme}
             selectedEntity={selectedEntity}
             onSelectEntity={handleSelectEntity}
             onUpdateProject={setProject}
@@ -178,36 +187,38 @@ export const App: React.FC = () => {
             canvasRefCallback={(ref) => { canvasDomRef.current = ref; }}
           />
 
-          {/* Barra Flotante de Herramientas de Creaci贸n */}
           <ItemToolbar
             project={project}
+            theme={theme}
             onUpdateProject={setProject}
             onSelectEntity={handleSelectEntity}
           />
         </div>
 
-        {/* Inspector de Entidades y Atributos Espaciales */}
         <Inspector
           project={project}
           diagnostics={diagnostics}
+          theme={theme}
           selectedEntity={selectedEntity}
           onSelectEntity={handleSelectEntity}
           onUpdateProject={setProject}
         />
       </div>
 
-      {/* 3. Consola y Motor de Diagn贸stico Normativo Inferior */}
+      {/* 3. Consola y Motor de Diagn髎tico Normativo Inferior */}
       <DiagnosticConsole
         project={project}
         diagnostics={diagnostics}
+        theme={theme}
         onSelectEntity={handleSelectEntity}
         onOpenGraphModal={() => setIsGraphModalOpen(true)}
       />
 
-      {/* Modal del Grafo Topol贸gico */}
+      {/* Modal del Grafo Topol骻ico */}
       <TopologicalGraphModal
         project={project}
         diagnostics={diagnostics}
+        theme={theme}
         isOpen={isGraphModalOpen}
         onClose={() => setIsGraphModalOpen(false)}
         onSelectNode={(nodeId) => handleSelectEntity('node', nodeId)}

@@ -8,12 +8,13 @@ import {
   DiagnosticResult,
   NodeComplianceStatus
 } from '../types/oguc';
-import { calculateCentroid, getPolygonBounds, isPointInPolygon } from '../engine/graph';
+import { calculateCentroid, distanceToRotatedRectangle, isPointInPolygon } from '../engine/graph';
 
 interface Canvas25DProps {
   project: ProjectData;
   diagnostics: DiagnosticResult;
   viewMode: '2D' | '2.5D';
+  theme: 'dark' | 'light';
   selectedEntity: { type: 'node' | 'edge' | 'item' | null; id: string | null; subId?: string | null };
   onSelectEntity: (type: 'node' | 'edge' | 'item' | null, id: string | null, subId?: string | null) => void;
   onUpdateProject: (updated: ProjectData) => void;
@@ -30,6 +31,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   project,
   diagnostics,
   viewMode,
+  theme,
   selectedEntity,
   onSelectEntity,
   onUpdateProject,
@@ -45,19 +47,20 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
   // Pan & Zoom
   const [scale, setScale] = useState<number>(65); // píxeles por metro
-  const [offset, setOffset] = useState<Point2D>({ x: 120, y: 120 });
+  const [offset, setOffset] = useState<Point2D>({ x: 140, y: 120 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<Point2D>({ x: 0, y: 0 });
 
   // Dragging Entities
   const [isDraggingEntity, setIsDraggingEntity] = useState<boolean>(false);
   const [dragStartWorld, setDragStartWorld] = useState<Point2D>({ x: 0, y: 0 });
-  const [dragVertexIndex, setDragVertexIndex] = useState<number | null>(null);
 
   // Iso 2.5D angles
   const isoAngle = Math.PI / 6; // 30 degrees
   const cosIso = Math.cos(isoAngle);
   const sinIso = Math.sin(isoAngle);
+
+  const isDark = theme === 'dark';
 
   // Registrar ref exterior para capturas PDF
   useEffect(() => {
@@ -87,7 +90,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     const isoY = (wx + wy) * sinIso - wz * 0.8;
     return {
       x: offset.x + 300 + isoX * scale,
-      y: offset.y + 150 + isoY * scale
+      y: offset.y + 160 + isoY * scale
     };
   }, [offset, scale, cosIso, sinIso]);
 
@@ -113,7 +116,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Redimensionar si es necesario
     const { width, height } = canvas.getBoundingClientRect();
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
@@ -122,8 +124,8 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Fondo neutro de bajo cansancio visual
-    ctx.fillStyle = '#0B0F17';
+    // Fondo según tema
+    ctx.fillStyle = isDark ? '#0B0F17' : '#F8FAFC';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 1. Grilla Cartesiana Activa (Alto Contraste)
@@ -138,6 +140,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     project,
     diagnostics,
     viewMode,
+    theme,
     selectedEntity,
     scale,
     offset,
@@ -145,7 +148,8 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     showTransferZones,
     showBfsPaths,
     showCotas,
-    showZHeights
+    showZHeights,
+    isDark
   ]);
 
   useEffect(() => {
@@ -156,10 +160,10 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   const renderGrid = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.save();
     const minorGrid = snapGrid * scale;
-    const majorGrid = 1.0 * scale; // Cada 1 metro
+    const majorGrid = 1.0 * scale;
 
-    // Grilla Menor (0.10m o snapGrid)
-    ctx.strokeStyle = '#151E2E';
+    // Grilla Menor
+    ctx.strokeStyle = isDark ? '#151E2E' : '#E2E8F0';
     ctx.lineWidth = 1;
     const startX = offset.x % minorGrid;
     const startY = offset.y % minorGrid;
@@ -176,7 +180,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     ctx.stroke();
 
     // Grilla Mayor (1.0m)
-    ctx.strokeStyle = '#1E293B';
+    ctx.strokeStyle = isDark ? '#1E293B' : '#CBD5E1';
     ctx.lineWidth = 1.2;
     const majorStartX = offset.x % majorGrid;
     const majorStartY = offset.y % majorGrid;
@@ -194,12 +198,12 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
     // Origen Cartesiano (0, 0)
     const origin = viewMode === '2D' ? worldToScreen2D(0, 0) : worldToIsoScreen(0, 0, 0);
-    ctx.strokeStyle = '#38BDF8';
+    ctx.strokeStyle = '#0284C7';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(origin.x, origin.y, 4, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = '#38BDF8';
+    ctx.fillStyle = isDark ? '#38BDF8' : '#0369A1';
     ctx.font = '10px "JetBrains Mono", monospace';
     ctx.fillText('(0,0) m', origin.x + 8, origin.y - 8);
 
@@ -208,7 +212,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
   // --- DIBUJO MODO 2D ---
   const render2D = (ctx: CanvasRenderingContext2D) => {
-    // 1. Rutas BFS de Accesibilidad (Líneas de conexión de flujo)
+    // 1. Rutas BFS de Accesibilidad
     if (showBfsPaths) {
       renderBfsPathRibbons(ctx);
     }
@@ -231,15 +235,15 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
       // Color de fondo semántico
       ctx.fillStyle = isSelected
-        ? 'rgba(56, 189, 248, 0.22)'
-        : getStatusColor(status, 0.12);
+        ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(14, 165, 233, 0.18)')
+        : getStatusColor(status, isDark ? 0.12 : 0.08);
       ctx.fill();
 
-      // Borde de muro
+      // Muro perimetral
       ctx.lineWidth = isSelected ? 3 : 2;
       ctx.strokeStyle = isSelected
-        ? '#38BDF8'
-        : getStatusColor(status, 0.85);
+        ? '#0284C7'
+        : getStatusColor(status, isDark ? 0.85 : 0.95);
       ctx.stroke();
 
       // Cotas de muro en 2D
@@ -251,7 +255,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       if (isSelected) {
         node.polygon_2d.forEach((pt) => {
           const scr = worldToScreen2D(pt.x, pt.y);
-          ctx.fillStyle = '#38BDF8';
+          ctx.fillStyle = '#0284C7';
           ctx.fillRect(scr.x - 4, scr.y - 4, 8, 8);
           ctx.strokeStyle = '#FFFFFF';
           ctx.lineWidth = 1.5;
@@ -263,17 +267,21 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       const centroid = node.centroid || calculateCentroid(node.polygon_2d);
       const cScr = worldToScreen2D(centroid.x, centroid.y);
 
-      ctx.fillStyle = '#F8FAFC';
+      ctx.fillStyle = isDark ? '#F8FAFC' : '#0F172A';
       ctx.font = 'bold 12px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(node.label, cScr.x, cScr.y - 10);
+      ctx.fillText(node.label, cScr.x, cScr.y - 12);
 
-      ctx.fillStyle = '#94A3B8';
+      const dimText = node.dimensions
+        ? `${node.dimensions.width_m.toFixed(2)}x${node.dimensions.length_m.toFixed(2)}m (${(node.calculatedArea || 0).toFixed(2)} m²)`
+        : `${(node.calculatedArea || 0).toFixed(2)} m²`;
+
+      ctx.fillStyle = isDark ? '#94A3B8' : '#475569';
       ctx.font = '10px "JetBrains Mono", monospace';
-      ctx.fillText(`${(node.calculatedArea || 0).toFixed(2)} m² | H:${node.height_z.toFixed(2)}m`, cScr.x, cScr.y + 6);
+      ctx.fillText(dimText, cScr.x, cScr.y + 4);
 
       // Badge de estado en recinto
-      renderNodeStatusBadge(ctx, cScr.x, cScr.y + 22, status, evalData?.is_orphan);
+      renderNodeStatusBadge(ctx, cScr.x, cScr.y + 20, status, evalData?.is_orphan, evalData?.has_door);
 
       // Capa R2: Radio de giro 1.50m
       if (showTurningRadius && evalData?.r2_circle_center) {
@@ -288,7 +296,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       ctx.restore();
     });
 
-    // 4. Aristas / Puertas en 2D
+    // 4. Aristas / Puertas en 2D con rotación vectorial (0° - 360°)
     project.edges.forEach(edge => {
       renderEdge2D(ctx, edge);
     });
@@ -296,7 +304,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
   // --- DIBUJO MODO 2.5D ISOMÉTRICO ---
   const render25D = (ctx: CanvasRenderingContext2D) => {
-    // Ordenar nodos por profundidad para render painter's algorithm
     const sortedNodes = [...project.nodes].sort((a, b) => {
       const centA = calculateCentroid(a.polygon_2d);
       const centB = calculateCentroid(b.polygon_2d);
@@ -320,8 +327,8 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       });
       ctx.closePath();
       ctx.fillStyle = isSelected
-        ? 'rgba(56, 189, 248, 0.3)'
-        : getStatusColor(status, 0.22);
+        ? 'rgba(56, 189, 248, 0.25)'
+        : getStatusColor(status, isDark ? 0.20 : 0.14);
       ctx.fill();
       ctx.strokeStyle = getStatusColor(status, 0.9);
       ctx.lineWidth = 2;
@@ -332,7 +339,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
         renderIsoTurningRadius(ctx, evalData.r2_circle_center, evalData.r2_turning_radius === 'PASS');
       }
 
-      // 2. Extrusión de Muros Verticales en 2.5D (Alambre arquitectónico semitransparente)
+      // 2. Extrusión de Muros Verticales en 2.5D
       for (let i = 0; i < node.polygon_2d.length; i++) {
         const p1 = node.polygon_2d[i];
         const p2 = node.polygon_2d[(i + 1) % node.polygon_2d.length];
@@ -342,7 +349,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
         const t1 = worldToIsoScreen(p1.x, p1.y, wallH);
         const t2 = worldToIsoScreen(p2.x, p2.y, wallH);
 
-        // Cara del muro
         ctx.beginPath();
         ctx.moveTo(b1.x, b1.y);
         ctx.lineTo(b2.x, b2.y);
@@ -350,9 +356,11 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
         ctx.lineTo(t1.x, t1.y);
         ctx.closePath();
 
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.45)';
+        ctx.fillStyle = isDark ? 'rgba(30, 41, 59, 0.40)' : 'rgba(226, 232, 240, 0.55)';
         ctx.fill();
-        ctx.strokeStyle = isSelected ? 'rgba(56, 189, 248, 0.7)' : 'rgba(148, 163, 184, 0.35)';
+        ctx.strokeStyle = isSelected
+          ? 'rgba(56, 189, 248, 0.7)'
+          : isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(100, 116, 139, 0.35)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
@@ -365,7 +373,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
         ctx.stroke();
       }
 
-      // 3. Artefactos con Volumen 2.5D
+      // 3. Artefactos con Volumen y Rotación 2.5D
       node.items?.forEach(item => {
         renderItem25D(ctx, node, item);
       });
@@ -374,14 +382,14 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       const centroid = node.centroid || calculateCentroid(node.polygon_2d);
       const isoTitle = worldToIsoScreen(centroid.x, centroid.y, wallH + 0.3);
 
-      ctx.fillStyle = '#F8FAFC';
+      ctx.fillStyle = isDark ? '#F8FAFC' : '#0F172A';
       ctx.font = 'bold 11px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(node.label, isoTitle.x, isoTitle.y);
 
-      ctx.fillStyle = '#94A3B8';
+      ctx.fillStyle = isDark ? '#94A3B8' : '#475569';
       ctx.font = '9px "JetBrains Mono", monospace';
-      ctx.fillText(`${(node.calculatedArea || 0).toFixed(2)}m² (Z:${wallH.toFixed(2)}m)`, isoTitle.x, isoTitle.y + 12);
+      ctx.fillText(`Z:${wallH.toFixed(2)}m`, isoTitle.x, isoTitle.y + 12);
 
       ctx.restore();
     });
@@ -392,81 +400,97 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     });
   };
 
-  // --- RENDERIZADO DE ÍTEMS EN 2D ---
+  // --- RENDERIZADO DE ÍTEMS EN 2D (CON ROTACIÓN 0° A 360°) ---
   const renderItem2D = (ctx: CanvasRenderingContext2D, node: SpatialNode, item: SpatialItem) => {
     const isSelected = selectedEntity.type === 'item' && selectedEntity.id === item.item_id;
     const itemW = item.width || 0.50;
     const itemD = item.depth || 0.50;
+    const rotDeg = item.rotation_deg || 0;
+    const rotRad = (rotDeg * Math.PI) / 180;
 
-    const p = worldToScreen2D(item.pos_x, item.pos_y);
+    const centerX = item.pos_x + itemW / 2;
+    const centerY = item.pos_y + itemD / 2;
+    const cScr = worldToScreen2D(centerX, centerY);
+
     const wPx = itemW * scale;
     const dPx = itemD * scale;
 
     ctx.save();
+    ctx.translate(cScr.x, cScr.y);
+    ctx.rotate(rotRad);
 
-    // Zona de Aproximación / Transferencia R4
+    // Zona de Aproximación R4 (si es inodoro)
     if (showTransferZones && item.type === 'TOILET') {
       const transW = 0.80 * scale;
       const transD = 1.20 * scale;
-      // Lado derecho de transferencia
       ctx.fillStyle = 'rgba(16, 185, 129, 0.18)';
       ctx.strokeStyle = '#10B981';
       ctx.setLineDash([4, 4]);
-      ctx.fillRect(p.x + wPx + 2, p.y - 10, transW, transD);
-      ctx.strokeRect(p.x + wPx + 2, p.y - 10, transW, transD);
+      ctx.fillRect(wPx / 2 + 2, -transD / 2, transW, transD);
+      ctx.strokeRect(wPx / 2 + 2, -transD / 2, transW, transD);
       ctx.setLineDash([]);
-      ctx.fillStyle = '#10B981';
-      ctx.font = '8px "JetBrains Mono", monospace';
-      ctx.fillText('0.80x1.20m', p.x + wPx + 8, p.y + 10);
     }
 
-    // Cuerpo del Artefacto
-    ctx.fillStyle = isSelected ? '#38BDF8' : '#1E293B';
-    ctx.strokeStyle = isSelected ? '#FFFFFF' : '#64748B';
+    // Dibujo del Artefacto
+    ctx.fillStyle = isSelected
+      ? '#0284C7'
+      : isDark ? '#1E293B' : '#F1F5F9';
+    ctx.strokeStyle = isSelected
+      ? '#FFFFFF'
+      : isDark ? '#64748B' : '#94A3B8';
     ctx.lineWidth = isSelected ? 2.5 : 1.5;
 
     if (item.type === 'TOILET') {
-      // Inodoro
-      ctx.fillRect(p.x, p.y, wPx, dPx * 0.4); // Estanque
+      // Inodoro centrado
+      ctx.fillRect(-wPx / 2, -dPx / 2, wPx, dPx * 0.35); // Estanque posterior
       ctx.beginPath();
-      ctx.ellipse(p.x + wPx / 2, p.y + dPx * 0.65, wPx * 0.45, dPx * 0.35, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, dPx * 0.15, wPx * 0.45, dPx * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     } else if (item.type === 'SINK') {
       // Lavamanos
-      ctx.fillRect(p.x, p.y, wPx, dPx);
-      ctx.strokeRect(p.x, p.y, wPx, dPx);
+      ctx.fillRect(-wPx / 2, -dPx / 2, wPx, dPx);
+      ctx.strokeRect(-wPx / 2, -dPx / 2, wPx, dPx);
       ctx.beginPath();
-      ctx.arc(p.x + wPx / 2, p.y + dPx / 2, Math.min(wPx, dPx) * 0.35, 0, Math.PI * 2);
-      ctx.fillStyle = '#0F172A';
+      ctx.arc(0, 0, Math.min(wPx, dPx) * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? '#0F172A' : '#E2E8F0';
       ctx.fill();
       ctx.stroke();
     } else if (item.type === 'SWITCH' || item.type === 'INTERCOM') {
       // Interruptor / Citófono
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
       ctx.fillStyle = item.z_installation > 1.20 || item.z_installation < 0.40 ? '#EF4444' : '#10B981';
       ctx.fill();
       ctx.stroke();
     } else if (item.type === 'GRAB_BAR') {
-      // Barra de Apoyo
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#38BDF8';
+      // Barra de Apoyo orientada
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#0284C7';
       ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x + wPx, p.y);
+      ctx.moveTo(-wPx / 2, 0);
+      ctx.lineTo(wPx / 2, 0);
       ctx.stroke();
     } else {
-      // General / Cama / Mesa
-      ctx.fillRect(p.x, p.y, wPx, dPx);
-      ctx.strokeRect(p.x, p.y, wPx, dPx);
+      ctx.fillRect(-wPx / 2, -dPx / 2, wPx, dPx);
+      ctx.strokeRect(-wPx / 2, -dPx / 2, wPx, dPx);
     }
 
-    // Etiqueta del Ítem y Cota Z
-    ctx.fillStyle = '#E2E8F0';
+    // Indicador sutil de orientación frontal (pequeño punto o flecha)
+    ctx.fillStyle = '#38BDF8';
+    ctx.beginPath();
+    ctx.arc(0, -dPx / 2 + 3, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // Texto de Etiqueta y Cotas Z (sin rotar para máxima legibilidad)
+    ctx.save();
+    ctx.fillStyle = isDark ? '#E2E8F0' : '#1E293B';
     ctx.font = '9px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(item.label || item.type, p.x, p.y - 4);
+    ctx.textAlign = 'center';
+    const itemLabel = showCotas ? `${item.label || item.type} (${itemW.toFixed(2)}x${itemD.toFixed(2)}m)` : (item.label || item.type);
+    ctx.fillText(itemLabel, cScr.x, cScr.y - dPx / 2 - 4);
 
     if (showZHeights) {
       const zColor = (item.is_operable || item.type === 'SWITCH' || item.type === 'SINK')
@@ -475,96 +499,110 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
         : '#10B981';
       ctx.fillStyle = zColor;
       ctx.font = 'bold 9px "JetBrains Mono", monospace';
-      ctx.fillText(`Z=${item.z_installation.toFixed(2)}m`, p.x, p.y + dPx + 10);
+      ctx.fillText(`Z=${item.z_installation.toFixed(2)}m (${rotDeg}°)`, cScr.x, cScr.y + dPx / 2 + 11);
     }
-
     ctx.restore();
   };
 
-  // --- RENDERIZADO DE ÍTEMS EN 2.5D ---
+  // --- RENDERIZADO DE ÍTEMS EN 2.5D ISOMÉTRICO (CON ROTACIÓN) ---
   const renderItem25D = (ctx: CanvasRenderingContext2D, node: SpatialNode, item: SpatialItem) => {
     const isSelected = selectedEntity.type === 'item' && selectedEntity.id === item.item_id;
     const w = item.width || 0.50;
     const d = item.depth || 0.50;
     const zBase = item.z_installation || 0.50;
+    const rotRad = ((item.rotation_deg || 0) * Math.PI) / 180;
 
-    const b1 = worldToIsoScreen(item.pos_x, item.pos_y, 0);
-    const t1 = worldToIsoScreen(item.pos_x, item.pos_y, zBase);
-    const t2 = worldToIsoScreen(item.pos_x + w, item.pos_y, zBase);
-    const t3 = worldToIsoScreen(item.pos_x + w, item.pos_y + d, zBase);
-    const t4 = worldToIsoScreen(item.pos_x, item.pos_y + d, zBase);
+    const cx = item.pos_x + w / 2;
+    const cy = item.pos_y + d / 2;
+
+    // Calcular las 4 esquinas rotadas en coordenadas del mundo
+    const corners = [
+      { x: -w / 2, y: -d / 2 },
+      { x: w / 2, y: -d / 2 },
+      { x: w / 2, y: d / 2 },
+      { x: -w / 2, y: d / 2 }
+    ].map(pt => ({
+      x: cx + pt.x * Math.cos(rotRad) - pt.y * Math.sin(rotRad),
+      y: cy + pt.x * Math.sin(rotRad) + pt.y * Math.cos(rotRad)
+    }));
+
+    const topCorners = corners.map(c => worldToIsoScreen(c.x, c.y, zBase));
+    const bottomCorners = corners.map(c => worldToIsoScreen(c.x, c.y, 0));
 
     ctx.save();
 
-    // Línea de Cota Vertical Z desde el piso
+    // Línea de Cota Vertical Z
     if (showZHeights) {
       ctx.strokeStyle = item.z_installation < 0.40 || item.z_installation > 1.20 ? '#EF4444' : '#38BDF8';
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 2]);
       ctx.beginPath();
-      ctx.moveTo(b1.x, b1.y);
-      ctx.lineTo(t1.x, t1.y);
+      ctx.moveTo(bottomCorners[0].x, bottomCorners[0].y);
+      ctx.lineTo(topCorners[0].x, topCorners[0].y);
       ctx.stroke();
       ctx.setLineDash([]);
-
-      ctx.fillStyle = '#38BDF8';
-      ctx.font = '8px "JetBrains Mono", monospace';
-      ctx.fillText(`Z:${zBase.toFixed(2)}m`, t1.x - 28, (b1.y + t1.y) / 2);
     }
 
-    // Volumen superior del artefacto
+    // Cara superior del ítem rotado
     ctx.beginPath();
-    ctx.moveTo(t1.x, t1.y);
-    ctx.lineTo(t2.x, t2.y);
-    ctx.lineTo(t3.x, t3.y);
-    ctx.lineTo(t4.x, t4.y);
+    topCorners.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
     ctx.closePath();
 
-    ctx.fillStyle = isSelected ? '#38BDF8' : '#334155';
+    ctx.fillStyle = isSelected
+      ? '#0284C7'
+      : isDark ? '#334155' : '#CBD5E1';
     ctx.fill();
-    ctx.strokeStyle = isSelected ? '#FFFFFF' : '#94A3B8';
+    ctx.strokeStyle = isSelected ? '#FFFFFF' : isDark ? '#94A3B8' : '#475569';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     ctx.restore();
   };
 
-  // --- RENDERIZADO DE PUERTAS EN 2D ---
+  // --- RENDERIZADO DE PUERTAS EN 2D (CON ROTACIÓN 0° A 360°) ---
   const renderEdge2D = (ctx: CanvasRenderingContext2D, edge: SpatialEdge) => {
     const isSelected = selectedEntity.type === 'edge' && selectedEntity.id === edge.edge_id;
     const isCompliant = edge.clear_width >= 0.80;
     const p = worldToScreen2D(edge.position.x, edge.position.y);
     const wPx = edge.clear_width * scale;
+    const rotRad = ((edge.rotation_deg || 0) * Math.PI) / 180;
 
     ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(rotRad);
 
     // Vano / Umbral
-    ctx.fillStyle = '#0F172A';
-    ctx.fillRect(p.x - wPx / 2, p.y - 3, wPx, 6);
+    ctx.fillStyle = isDark ? '#0F172A' : '#E2E8F0';
+    ctx.fillRect(-wPx / 2, -3, wPx, 6);
 
-    // Línea de Hoja de Puerta
-    ctx.strokeStyle = isSelected ? '#38BDF8' : isCompliant ? '#10B981' : '#EF4444';
+    // Hoja de Puerta
+    ctx.strokeStyle = isSelected ? '#0284C7' : isCompliant ? '#10B981' : '#EF4444';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(p.x - wPx / 2, p.y);
-    ctx.lineTo(p.x + wPx / 2, p.y);
+    ctx.moveTo(-wPx / 2, 0);
+    ctx.lineTo(wPx / 2, 0);
     ctx.stroke();
 
-    // Arco de abatimiento de puerta
+    // Arco de abatimiento
     ctx.strokeStyle = isCompliant ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)';
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
     ctx.beginPath();
-    ctx.arc(p.x - wPx / 2, p.y, wPx, 0, Math.PI / 2, false);
+    ctx.arc(-wPx / 2, 0, wPx, 0, Math.PI / 2, false);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Etiqueta de Ancho Libre
+    ctx.restore();
+
+    // Etiqueta de Ancho Libre (horizontal)
+    ctx.save();
     ctx.fillStyle = isCompliant ? '#10B981' : '#EF4444';
     ctx.font = 'bold 9px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`${edge.clear_width.toFixed(2)}m ${isCompliant ? '✓' : '✗'}`, p.x, p.y - 8);
-
+    ctx.fillText(`${edge.clear_width.toFixed(2)}m (${edge.rotation_deg || 0}°)`, p.x, p.y - 10);
     ctx.restore();
   };
 
@@ -572,7 +610,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   const renderEdge25D = (ctx: CanvasRenderingContext2D, edge: SpatialEdge) => {
     const isCompliant = edge.clear_width >= 0.80;
     const p = worldToIsoScreen(edge.position.x, edge.position.y, 0);
-    const pTop = worldToIsoScreen(edge.position.x, edge.position.y, 2.10); // Altura de puerta 2.10m
+    const pTop = worldToIsoScreen(edge.position.x, edge.position.y, 2.10);
 
     ctx.save();
     ctx.strokeStyle = isCompliant ? '#10B981' : '#EF4444';
@@ -584,17 +622,17 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
 
     ctx.fillStyle = isCompliant ? '#10B981' : '#EF4444';
     ctx.font = 'bold 8px "JetBrains Mono", monospace';
-    ctx.fillText(`L:${edge.clear_width.toFixed(2)}m`, p.x + 6, p.y - 10);
+    ctx.fillText(`${edge.clear_width.toFixed(2)}m`, p.x + 6, p.y - 8);
     ctx.restore();
   };
 
-  // --- CIRCULO DE GIRO 1.50M ---
+  // --- CÍRCULO DE GIRO 1.50M ---
   const renderTurningRadiusCircle = (ctx: CanvasRenderingContext2D, center: Point2D, fits: boolean) => {
     const scr = worldToScreen2D(center.x, center.y);
-    const rPx = 0.75 * scale; // Radio 0.75m -> Diámetro 1.50m
+    const rPx = 0.75 * scale;
 
     ctx.save();
-    ctx.fillStyle = fits ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.20)';
+    ctx.fillStyle = fits ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.18)';
     ctx.strokeStyle = fits ? '#10B981' : '#F59E0B';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 4]);
@@ -605,7 +643,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Icono / Etiqueta central de radio
     ctx.fillStyle = fits ? '#10B981' : '#F59E0B';
     ctx.font = 'bold 9px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
@@ -615,10 +652,9 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   };
 
   const renderIsoTurningRadius = (ctx: CanvasRenderingContext2D, center: Point2D, fits: boolean) => {
-    const isoCent = worldToIsoScreen(center.x, center.y, 0);
     const r = 0.75;
     ctx.save();
-    ctx.fillStyle = fits ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.22)';
+    ctx.fillStyle = fits ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.20)';
     ctx.strokeStyle = fits ? '#10B981' : '#F59E0B';
     ctx.lineWidth = 1.5;
 
@@ -640,7 +676,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   const renderPolygonDimensions = (ctx: CanvasRenderingContext2D, points: Point2D[]) => {
     ctx.save();
     ctx.font = '9px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#64748B';
+    ctx.fillStyle = isDark ? '#64748B' : '#475569';
     ctx.textAlign = 'center';
 
     for (let i = 0; i < points.length; i++) {
@@ -693,13 +729,17 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     x: number,
     y: number,
     status: NodeComplianceStatus | string,
-    isOrphan?: boolean
+    isOrphan?: boolean,
+    hasDoor?: boolean
   ) => {
     ctx.save();
     let text = 'CONFORME';
     let bg = '#10B981';
 
-    if (isOrphan) {
+    if (hasDoor === false) {
+      text = 'SIN PUERTA ASIGNADA';
+      bg = '#EF4444';
+    } else if (isOrphan) {
       text = 'AISLADO (HUÉRFANO)';
       bg = '#EF4444';
     } else if (status === 'NON_COMPLIANT') {
@@ -723,7 +763,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     ctx.restore();
   };
 
-  // --- GESTIÓN DE EVENTOS DE RATÓN (SELECCIÓN, PAN, DRAG & ZOOM) ---
+  // --- GESTIÓN DE EVENTOS DE RATÓN ---
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -731,24 +771,26 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     const mouseScr = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const mouseWorld = screenToWorld2D(mouseScr.x, mouseScr.y);
 
-    // Si es botón central o barra espaciadora -> Iniciar Pan
     if (e.button === 1 || e.altKey) {
       setIsPanning(true);
       setPanStart(mouseScr);
       return;
     }
 
-    // 1. Detectar clic en Ítems
+    // 1. Clic en Ítems (soportando OBB rotado)
     for (const node of project.nodes) {
       for (const item of (node.items || [])) {
         const itemW = item.width || 0.50;
         const itemD = item.depth || 0.50;
-        if (
-          mouseWorld.x >= item.pos_x &&
-          mouseWorld.x <= item.pos_x + itemW &&
-          mouseWorld.y >= item.pos_y &&
-          mouseWorld.y <= item.pos_y + itemD
-        ) {
+        const dist = distanceToRotatedRectangle(mouseWorld, {
+          x: item.pos_x,
+          y: item.pos_y,
+          width: itemW,
+          depth: itemD,
+          rotation_deg: item.rotation_deg || 0
+        });
+
+        if (dist <= 0.15) {
           onSelectEntity('item', item.item_id, node.node_id);
           setIsDraggingEntity(true);
           setDragStartWorld(mouseWorld);
@@ -757,7 +799,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       }
     }
 
-    // 2. Detectar clic en Puertas / Aristas
+    // 2. Clic en Puertas / Aristas
     for (const edge of project.edges) {
       const dist = Math.hypot(mouseWorld.x - edge.position.x, mouseWorld.y - edge.position.y);
       if (dist <= 0.40) {
@@ -768,7 +810,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       }
     }
 
-    // 3. Detectar clic en Nodos / Recintos
+    // 3. Clic en Nodos / Recintos
     for (const node of project.nodes) {
       if (isPointInPolygon(mouseWorld, node.polygon_2d)) {
         onSelectEntity('node', node.node_id);
@@ -778,7 +820,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       }
     }
 
-    // Clic en el vacío: Iniciar Pan con botón izquierdo o deseleccionar
     onSelectEntity(null, null);
     setIsPanning(true);
     setPanStart(mouseScr);
@@ -803,14 +844,12 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
       const rawDx = mouseWorld.x - dragStartWorld.x;
       const rawDy = mouseWorld.y - dragStartWorld.y;
 
-      // Snap a grilla
       const snap = (v: number) => Math.round(v / snapGrid) * snapGrid;
       const dx = snap(rawDx);
       const dy = snap(rawDy);
 
       if (dx === 0 && dy === 0) return;
 
-      // Mover Entidad Seleccionada
       if (selectedEntity.type === 'node') {
         const updatedNodes = project.nodes.map(n => {
           if (n.node_id === selectedEntity.id) {
@@ -871,7 +910,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   const handleMouseUp = () => {
     setIsPanning(false);
     setIsDraggingEntity(false);
-    setDragVertexIndex(null);
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -885,7 +923,6 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Zoom centrado en el cursor del ratón
     const newOffsetX = mouseX - (mouseX - offset.x) * (newScale / scale);
     const newOffsetY = mouseY - (mouseY - offset.y) * (newScale / scale);
 
@@ -894,7 +931,7 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full bg-[#0B0F17] overflow-hidden select-none">
+    <div className={`relative w-full h-full overflow-hidden select-none ${isDark ? 'bg-[#0B0F17]' : 'bg-[#F8FAFC]'}`}>
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
@@ -904,18 +941,19 @@ export const Canvas25D: React.FC<Canvas25DProps> = ({
         className="w-full h-full cursor-crosshair block"
       />
 
-      {/* Controles flotantes en lienzo */}
-      <div className="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-lg px-3 py-1.5 flex items-center space-x-3 text-xs text-slate-300 font-mono shadow-xl">
+      <div className={`absolute bottom-4 left-4 backdrop-blur border rounded-lg px-3 py-1.5 flex items-center space-x-3 text-xs font-mono shadow-md ${
+        isDark ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' : 'bg-white/90 border-slate-300 text-slate-700'
+      }`}>
         <span>Zoom: {Math.round((scale / 65) * 100)}%</span>
-        <span className="text-slate-600">|</span>
+        <span className="opacity-40">|</span>
         <span>Snap: {snapGrid}m</span>
-        <span className="text-slate-600">|</span>
+        <span className="opacity-40">|</span>
         <button
           onClick={() => {
             setScale(65);
-            setOffset({ x: 120, y: 120 });
+            setOffset({ x: 140, y: 120 });
           }}
-          className="hover:text-sky-400 underline transition-colors"
+          className="text-sky-500 hover:underline"
         >
           Reset Vista
         </button>
